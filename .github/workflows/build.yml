@@ -230,3 +230,4 @@ jobs:
             sudo ss -lntp | grep 8080
 
             curl -f http://localhost:8080/TrainBook-1.0.0-SNAPSHOT/
+# CI/CD workflow
