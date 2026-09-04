@@ -4,20 +4,23 @@ on:
   push:
     branches:
       - main
+
   pull_request:
     branches:
       - main
 
 jobs:
+
+  # =========================
+  # BUILD
+  # =========================
   build:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout source code
       - name: Checkout source code
         uses: actions/checkout@v4
 
-      # 2. Setup Java 17
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
@@ -25,30 +28,30 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      # 3. Build WAR file
       - name: Build application with Maven
         run: mvn clean package
 
-      # 4. Upload WAR artifact
       - name: Upload WAR artifact
         uses: actions/upload-artifact@v4
         with:
           name: train-ticket-war
           path: target/*.war
 
+
+  # =========================
+  # DEPLOY TO DEV
+  # =========================
   deploy-dev:
     needs: build
     runs-on: ubuntu-latest
 
     steps:
-      # 5. Download WAR artifact
       - name: Download WAR artifact
         uses: actions/download-artifact@v4
         with:
           name: train-ticket-war
           path: war
 
-      # 6. Copy WAR to DEV EC2
       - name: Deploy WAR to DEV
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -58,7 +61,6 @@ jobs:
           source: "war/*.war"
           target: "/tmp/"
 
-      # 7. Deploy WAR into Tomcat
       - name: Restart Tomcat and deploy
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -68,26 +70,33 @@ jobs:
           script: |
             sudo -u tomcat /opt/tomcat/bin/shutdown.sh || true
             sleep 5
+
             sudo rm -f /opt/tomcat/webapps/*.war
             sudo rm -rf /opt/tomcat/webapps/TrainBook-1.0.0-SNAPSHOT
+
             sudo cp /tmp/*.war /opt/tomcat/webapps/
             sudo chown tomcat:tomcat /opt/tomcat/webapps/*.war
+
             sudo -u tomcat /opt/tomcat/bin/startup.sh
             sleep 10
+
             sudo ss -lntp | grep 8080
+
+
+  # =========================
+  # DEPLOY TO TEST
+  # =========================
   deploy-test:
     needs: deploy-dev
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Download the WAR artifact
       - name: Download WAR artifact
         uses: actions/download-artifact@v4
         with:
           name: train-ticket-war
           path: war
 
-      # 2. Copy WAR to TEST EC2
       - name: Deploy WAR to TEST
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -97,7 +106,6 @@ jobs:
           source: "war/*.war"
           target: "/tmp/"
 
-      # 3. Deploy WAR into Tomcat
       - name: Restart Tomcat and deploy
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -107,13 +115,22 @@ jobs:
           script: |
             sudo -u tomcat /opt/tomcat/bin/shutdown.sh || true
             sleep 5
+
             sudo rm -f /opt/tomcat/webapps/*.war
             sudo rm -rf /opt/tomcat/webapps/TrainBook-1.0.0-SNAPSHOT
+
             sudo cp /tmp/*.war /opt/tomcat/webapps/
             sudo chown tomcat:tomcat /opt/tomcat/webapps/*.war
+
             sudo -u tomcat /opt/tomcat/bin/startup.sh
             sleep 10
+
             sudo ss -lntp | grep 8080
+
+
+  # =========================
+  # DEPLOY TO PRE-PROD
+  # =========================
   deploy-preprod:
     needs: deploy-test
     runs-on: ubuntu-latest
@@ -143,16 +160,29 @@ jobs:
           script: |
             sudo -u tomcat /opt/tomcat/bin/shutdown.sh || true
             sleep 5
+
             sudo rm -f /opt/tomcat/webapps/*.war
             sudo rm -rf /opt/tomcat/webapps/TrainBook-1.0.0-SNAPSHOT
+
             sudo cp /tmp/*.war /opt/tomcat/webapps/
             sudo chown tomcat:tomcat /opt/tomcat/webapps/*.war
+
             sudo -u tomcat /opt/tomcat/bin/startup.sh
             sleep 10
+
             sudo ss -lntp | grep 8080
+
+
+  # =========================
+  # DEPLOY TO PROD
+  # =========================
   deploy-prod:
     needs: deploy-preprod
     runs-on: ubuntu-latest
+
+    # GitHub Environment
+    # This enables the required reviewer approval
+    environment: PROD
 
     steps:
       - name: Download WAR artifact
@@ -179,11 +209,17 @@ jobs:
           script: |
             sudo -u tomcat /opt/tomcat/bin/shutdown.sh || true
             sleep 5
+
             sudo rm -f /opt/tomcat/webapps/*.war
             sudo rm -rf /opt/tomcat/webapps/TrainBook-1.0.0-SNAPSHOT
+
             sudo cp /tmp/*.war /opt/tomcat/webapps/
             sudo chown tomcat:tomcat /opt/tomcat/webapps/*.war
+
             sudo -u tomcat /opt/tomcat/bin/startup.sh
             sleep 10
+
             sudo ss -lntp | grep 8080
+
+            # Application health check
             curl -f http://localhost:8080/TrainBook-1.0.0-SNAPSHOT/
