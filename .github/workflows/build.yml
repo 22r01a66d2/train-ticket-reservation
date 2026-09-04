@@ -186,3 +186,4 @@ jobs:
             sudo -u tomcat /opt/tomcat/bin/startup.sh
             sleep 10
             sudo ss -lntp | grep 8080
+            curl -f http://localhost:8080/TrainBook-1.0.0-SNAPSHOT/
