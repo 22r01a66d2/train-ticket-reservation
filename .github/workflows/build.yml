@@ -4,16 +4,15 @@ on:
   push:
     branches:
       - main
-
   pull_request:
     branches:
       - main
 
 jobs:
 
-  # =========================
-  # BUILD
-  # =========================
+  # ==========================================
+  # 1. BUILD
+  # ==========================================
   build:
     runs-on: ubuntu-latest
 
@@ -38,9 +37,9 @@ jobs:
           path: target/*.war
 
 
-  # =========================
-  # DEPLOY TO DEV
-  # =========================
+  # ==========================================
+  # 2. DEPLOY TO DEV
+  # ==========================================
   deploy-dev:
     needs: build
     runs-on: ubuntu-latest
@@ -61,14 +60,14 @@ jobs:
           source: "war/*.war"
           target: "/tmp/"
 
-      - name: Restart Tomcat and deploy
+      - name: Restart Tomcat and deploy to DEV
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEV_HOST }}
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            sudo -u tomcat /opt/tomcat/bin/shutdown.sh || true
+            sudo systemctl stop tomcat || true
             sleep 5
 
             sudo rm -f /opt/tomcat/webapps/*.war
@@ -77,15 +76,18 @@ jobs:
             sudo cp /tmp/*.war /opt/tomcat/webapps/
             sudo chown tomcat:tomcat /opt/tomcat/webapps/*.war
 
-            sudo -u tomcat /opt/tomcat/bin/startup.sh
+            sudo systemctl start tomcat
             sleep 10
 
+            sudo systemctl status tomcat --no-pager
             sudo ss -lntp | grep 8080
 
+            curl -f http://localhost:8080/TrainBook-1.0.0-SNAPSHOT/
 
-  # =========================
-  # DEPLOY TO TEST
-  # =========================
+
+  # ==========================================
+  # 3. DEPLOY TO TEST
+  # ==========================================
   deploy-test:
     needs: deploy-dev
     runs-on: ubuntu-latest
@@ -106,14 +108,14 @@ jobs:
           source: "war/*.war"
           target: "/tmp/"
 
-      - name: Restart Tomcat and deploy
+      - name: Restart Tomcat and deploy to TEST
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.TEST_HOST }}
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            sudo -u tomcat /opt/tomcat/bin/shutdown.sh || true
+            sudo systemctl stop tomcat || true
             sleep 5
 
             sudo rm -f /opt/tomcat/webapps/*.war
@@ -122,15 +124,18 @@ jobs:
             sudo cp /tmp/*.war /opt/tomcat/webapps/
             sudo chown tomcat:tomcat /opt/tomcat/webapps/*.war
 
-            sudo -u tomcat /opt/tomcat/bin/startup.sh
+            sudo systemctl start tomcat
             sleep 10
 
+            sudo systemctl status tomcat --no-pager
             sudo ss -lntp | grep 8080
 
+            curl -f http://localhost:8080/TrainBook-1.0.0-SNAPSHOT/
 
-  # =========================
-  # DEPLOY TO PRE-PROD
-  # =========================
+
+  # ==========================================
+  # 4. DEPLOY TO PRE-PROD
+  # ==========================================
   deploy-preprod:
     needs: deploy-test
     runs-on: ubuntu-latest
@@ -151,14 +156,14 @@ jobs:
           source: "war/*.war"
           target: "/tmp/"
 
-      - name: Restart Tomcat and deploy
+      - name: Restart Tomcat and deploy to PRE-PROD
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.PREPROD_HOST }}
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            sudo -u tomcat /opt/tomcat/bin/shutdown.sh || true
+            sudo systemctl stop tomcat || true
             sleep 5
 
             sudo rm -f /opt/tomcat/webapps/*.war
@@ -167,21 +172,23 @@ jobs:
             sudo cp /tmp/*.war /opt/tomcat/webapps/
             sudo chown tomcat:tomcat /opt/tomcat/webapps/*.war
 
-            sudo -u tomcat /opt/tomcat/bin/startup.sh
+            sudo systemctl start tomcat
             sleep 10
 
+            sudo systemctl status tomcat --no-pager
             sudo ss -lntp | grep 8080
 
+            curl -f http://localhost:8080/TrainBook-1.0.0-SNAPSHOT/
 
-  # =========================
-  # DEPLOY TO PROD
-  # =========================
+
+  # ==========================================
+  # 5. DEPLOY TO PROD
+  # ==========================================
   deploy-prod:
     needs: deploy-preprod
     runs-on: ubuntu-latest
 
-    # GitHub Environment
-    # This enables the required reviewer approval
+    # GitHub Environment with required reviewer
     environment: PROD
 
     steps:
@@ -200,14 +207,14 @@ jobs:
           source: "war/*.war"
           target: "/tmp/"
 
-      - name: Restart Tomcat and deploy
+      - name: Restart Tomcat and deploy to PROD
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.PROD_HOST }}
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            sudo -u tomcat /opt/tomcat/bin/shutdown.sh || true
+            sudo systemctl stop tomcat || true
             sleep 5
 
             sudo rm -f /opt/tomcat/webapps/*.war
@@ -216,10 +223,10 @@ jobs:
             sudo cp /tmp/*.war /opt/tomcat/webapps/
             sudo chown tomcat:tomcat /opt/tomcat/webapps/*.war
 
-            sudo -u tomcat /opt/tomcat/bin/startup.sh
+            sudo systemctl start tomcat
             sleep 10
 
+            sudo systemctl status tomcat --no-pager
             sudo ss -lntp | grep 8080
 
-            # Application health check
             curl -f http://localhost:8080/TrainBook-1.0.0-SNAPSHOT/
