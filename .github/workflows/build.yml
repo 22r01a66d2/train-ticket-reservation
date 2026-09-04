@@ -75,3 +75,42 @@ jobs:
             sudo -u tomcat /opt/tomcat/bin/startup.sh
             sleep 10
             sudo ss -lntp | grep 8080
+  deploy-test:
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Download the WAR artifact
+      - name: Download WAR artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: train-ticket-war
+          path: war
+
+      # 2. Copy WAR to TEST EC2
+      - name: Deploy WAR to TEST
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.TEST_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "war/*.war"
+          target: "/tmp/"
+
+      # 3. Deploy WAR into Tomcat
+      - name: Restart Tomcat and deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.TEST_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            sudo -u tomcat /opt/tomcat/bin/shutdown.sh || true
+            sleep 5
+            sudo rm -f /opt/tomcat/webapps/*.war
+            sudo rm -rf /opt/tomcat/webapps/TrainBook-1.0.0-SNAPSHOT
+            sudo cp /tmp/*.war /opt/tomcat/webapps/
+            sudo chown tomcat:tomcat /opt/tomcat/webapps/*.war
+            sudo -u tomcat /opt/tomcat/bin/startup.sh
+            sleep 10
+            sudo ss -lntp | grep 8080
